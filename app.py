@@ -2,54 +2,60 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import datetime
-
-# --- BULLETPROOF FIX: Force Yahoo Finance to accept Streamlit Cloud Server Requests ---
 import requests
-# Creating a dummy browser header stops Yahoo from blocking the cloud IP
+
+# --- FORCE YAHOO FINANCE TO ACCEPT SERVER REQUESTS ---
 custom_session = requests.Session()
 custom_session.headers.update({
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
 })
 
-# 1. Page Configuration and Styling
+# 1. Page Configuration
 st.set_page_config(page_title="Institutional Equity Research Dashboard", layout="wide")
 st.title("📊 Institutional Equity Research & Automated Valuation Engine")
 st.markdown("Developed by **Quentin Adeniran** | Cloud-Hosted Financial Tool")
 st.markdown("---")
 
-# 2. Sidebar Configuration for Inputs
+# 2. Control Panel
 st.sidebar.header("🕹️ Control Panel")
 ticker_input = st.sidebar.text_input("Enter Ticker Symbol (e.g., AAPL, MSFT, TSLA):", value="AAPL").upper().strip()
 
-# Set up historical date ranges
 end_date = datetime.date.today()
-start_date = end_date - datetime.timedelta(days=365) # 1 Year of historical data
+start_date = end_date - datetime.timedelta(days=365)
 
-# 3. Data Fetching Layer with Error Catching
-@st.cache_data(ttl=3600)  # Cache data for 1 hour to optimize performance
-def fetch_financial_data(ticker):
+# 3. FIXED DATA FETCHING LAYER (Separated to prevent serialization errors)
+@st.cache_data(ttl=3600)
+def fetch_historical_prices(ticker):
     try:
-        # Pass our custom browser session into yfinance to bypass IP rate limits
         stock = yf.Ticker(ticker, session=custom_session)
-        # Verify ticker validity by checking if history is empty
         hist = stock.history(start=start_date, end=end_date)
         if hist.empty:
-            return None, None
-        return stock, hist
+            return None
+        return hist
     except Exception:
-        return None, None
+        return None
 
-stock_obj, hist_data = fetch_financial_data(ticker_input)
+@st.cache_data(ttl=3600)
+def fetch_company_info(ticker):
+    try:
+        stock = yf.Ticker(ticker, session=custom_session)
+        # Extract the raw info dictionary directly inside the cached function
+        info = stock.info
+        if not info or 'longName' not in info:
+            return {}
+        return info
+    except Exception:
+        return {}
 
-if stock_obj is None or hist_data is None or hist_data.empty:
+# Run the fixed functions
+hist_data = fetch_historical_prices(ticker_input)
+info = fetch_company_info(ticker_input)
+
+# Check if data exists cleanly
+if hist_data is None or hist_data.empty:
     st.error(f"❌ Error: Ticker '{ticker_input}' could not be resolved or returned empty data. Please check the symbol and try again.")
 else:
-    # Extract structural metadata safely
-    try:
-        info = stock_obj.info
-    except Exception:
-        info = {}
-
+    # Extract data with safe defaults
     company_name = info.get('longName', ticker_input)
     sector = info.get('sector', 'N/A')
     industry = info.get('industry', 'N/A')
@@ -61,11 +67,9 @@ else:
     
     col1, col2, col3, col4 = st.columns(4)
     
-    # Extract live data points with safe default fallbacks
-    current_price = info.get('currentPrice') or info.get('regularMarketPrice') or (hist_data['Close'].iloc[-1] if not hist_data.empty else 0.0)
+    current_price = info.get('currentPrice') or info.get('regularMarketPrice') or hist_data['Close'].iloc[-1]
     target_price = info.get('targetMedianPrice', 0.0)
     pe_ratio = info.get('trailingPE', 0.0)
-    forward_pe = info.get('forwardPE', 0.0)
     market_cap = info.get('marketCap', 0.0)
 
     col1.metric("Current Price", f"${current_price:,.2f}" if current_price else "N/A")
@@ -75,12 +79,11 @@ else:
 
     st.markdown("---")
 
-    # 5. Core Layout Split: Charting & Algorithmic Analysis
+    # 5. Charting & Algorithmic Analysis Layout
     left_chart_col, right_metrics_col = st.columns(2)
 
     with left_chart_col:
         st.subheader("📈 1-Year Historical Performance (Close Price)")
-        # Plot cleanly using Streamlit's native interactive line chart
         chart_df = hist_data[['Close']].copy()
         st.line_chart(chart_df, height=350)
         
@@ -90,8 +93,8 @@ else:
     with right_metrics_col:
         st.subheader("🛡️ Algorithmic Valuation Signals")
         
-        # Scoring System
         signals = []
+        forward_pe = info.get('forwardPE', 0.0)
         
         # Signal 1: Valuation Check
         if pe_ratio and forward_pe:
@@ -112,7 +115,7 @@ else:
             else:
                 signals.append(("🟡 Fairly Valued", f"Consensus price target sits within a neutral range ({upside:.1f}% variation)."))
 
-        # Signal 3: Operational Liquidity / Health Check
+        # Signal 3: Operational Liquidity Check
         quick_ratio = info.get('quickRatio')
         if quick_ratio:
             if quick_ratio >= 1.0:
@@ -122,7 +125,7 @@ else:
         else:
             signals.append(("🟡 Liquidity Unreported", "Quick ratio parameters not made available by current financial feeds."))
 
-        # Display compiled execution blocks
+        # Display compiled blocks
         for title, desc in signals:
             st.markdown(f"**{title}**")
             if "✅" in title:
