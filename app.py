@@ -168,30 +168,16 @@ else:
             
             if wacc_decimal > pgr_decimal:
                 intrinsic_firm_value = (free_cash_flow * (1 + pgr_decimal)) / (wacc_decimal - pgr_decimal)
-                dcf_intrinsic_price = intrinsic_firm_value / shares_outstanding
-                dcf_variance = ((dcf_intrinsic_price - live_price) / live_price) * 100
+                intrinsic_value_per_share = intrinsic_firm_value / shares_outstanding
+                variance = ((intrinsic_value_per_share - live_price) / live_price) * 100
                 
-                st.markdown(f"**📊 Quantitative DCF Fair Value Output: `${dcf_intrinsic_price:,.2f}`**")
-                if dcf_variance > 0:
-                    st.success(f"Model indicates asset is currently undervalued by **{dcf_variance:.1f}%** relative to structural cash generation capability.")
+                # Visual output blocks for DCF Engine
+                st.info(f"💡 **Estimated Intrinsic Value:** ${intrinsic_value_per_share:,.2f} per share")
+                if variance > 0:
+                    st.success(f"📈 Asset is potentially **Undervalued** by {abs(variance):.2f}%")
                 else:
-                    st.error(f"Model indicates asset trades at a structural premium of **{abs(dcf_variance):.1f}%** above calculated cash values.")
+                    st.warning(f"📉 Asset is potentially **Overvalued** by {abs(variance):.2f}%")
             else:
-                st.warning("Calculation stalled: WACC parameters must remain strictly greater than the Perpetual Growth Rate.")
+                st.error("⚠️ Calculation Halt: WACC must be strictly greater than the Perpetual Growth Rate (PGR).")
         else:
-            st.markdown("**📊 Quantitative DCF Fair Value Output:**")
-            st.info("Intrinsic metrics unmapped: Asset balance sheet registers irregular trailing free cash flow lines.")
-
-        st.markdown("---")
-        
-        # Signal Generation Logic Pipeline
-        signals = []
-        forward_pe = info.get('forwardPE', 0.0)
-
-        # Signal 1: Beta Risk Mapping (Market Volatility Factor)
-        if beta:
-            if beta > 1.2:
-                signals.append(("🚨 High Systematic Risk Profile", f"Asset Beta sits at {beta:.2f}. Expect heightened volatility relative to broader market indexing movements."))
-            elif beta < 0.8:
-                signals.append(("✅ Defensive Hedging Asset", f"Asset Beta registers at {beta:.2f}. Demonstrates non-correlated resilience profiles ideal for volatility mitigation."))
-            else:
+            st.warning("⚠️ Data Feed Deficit: Free Cash Flow records are missing or negative for this listing. DCF valuation skipped.")
