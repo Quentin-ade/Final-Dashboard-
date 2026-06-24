@@ -16,7 +16,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🏛️ AlphaForge: Institutional Equity Research & Valuation Engine")
+st.title("Quentin Adeniran: Equity Research & Valuation Engine")
 st.markdown("Designed & Engineered by **Quentin Adeniran** | Cloud-Native Quantitative Architecture")
 st.markdown("---")
 
