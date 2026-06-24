@@ -3,6 +3,14 @@ import yfinance as yf
 import pandas as pd
 import datetime
 
+# --- BULLETPROOF FIX: Force Yahoo Finance to accept Streamlit Cloud Server Requests ---
+import requests
+# Creating a dummy browser header stops Yahoo from blocking the cloud IP
+custom_session = requests.Session()
+custom_session.headers.update({
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+})
+
 # 1. Page Configuration and Styling
 st.set_page_config(page_title="Institutional Equity Research Dashboard", layout="wide")
 st.title("📊 Institutional Equity Research & Automated Valuation Engine")
@@ -21,22 +29,27 @@ start_date = end_date - datetime.timedelta(days=365) # 1 Year of historical data
 @st.cache_data(ttl=3600)  # Cache data for 1 hour to optimize performance
 def fetch_financial_data(ticker):
     try:
-        stock = yf.Ticker(ticker)
+        # Pass our custom browser session into yfinance to bypass IP rate limits
+        stock = yf.Ticker(ticker, session=custom_session)
         # Verify ticker validity by checking if history is empty
-        hist = stock.history(period="1d")
+        hist = stock.history(start=start_date, end=end_date)
         if hist.empty:
             return None, None
-        return stock, stock.history(start=start_date, end=end_date)
+        return stock, hist
     except Exception:
         return None, None
 
 stock_obj, hist_data = fetch_financial_data(ticker_input)
 
-if stock_obj is None or hist_data.empty:
+if stock_obj is None or hist_data is None or hist_data.empty:
     st.error(f"❌ Error: Ticker '{ticker_input}' could not be resolved or returned empty data. Please check the symbol and try again.")
 else:
     # Extract structural metadata safely
-    info = stock_obj.info
+    try:
+        info = stock_obj.info
+    except Exception:
+        info = {}
+
     company_name = info.get('longName', ticker_input)
     sector = info.get('sector', 'N/A')
     industry = info.get('industry', 'N/A')
@@ -54,9 +67,8 @@ else:
     pe_ratio = info.get('trailingPE', 0.0)
     forward_pe = info.get('forwardPE', 0.0)
     market_cap = info.get('marketCap', 0.0)
-    dividend_yield = info.get('dividendYield', 0.0) * 100 if info.get('dividendYield') else 0.0
 
-    col1.metric("Current Price", f"${current_price:,.2f}")
+    col1.metric("Current Price", f"${current_price:,.2f}" if current_price else "N/A")
     col2.metric("Target Price (Median)", f"${target_price:,.2f}" if target_price else "N/A")
     col3.metric("Trailing P/E Ratio", f"{pe_ratio:.2f}x" if pe_ratio else "N/A")
     col4.metric("Market Capitalization", f"${market_cap:,.0f}" if market_cap else "N/A")
@@ -64,7 +76,7 @@ else:
     st.markdown("---")
 
     # 5. Core Layout Split: Charting & Algorithmic Analysis
-    left_chart_col, right_metrics_col = st.columns([2, 1])
+    left_chart_col, right_metrics_col = st.columns(2)
 
     with left_chart_col:
         st.subheader("📈 1-Year Historical Performance (Close Price)")
@@ -87,6 +99,8 @@ else:
                 signals.append(("✅ Forward Multiples", "Forward P/E is lower than Trailing P/E, signaling projected earnings growth."))
             else:
                 signals.append(("⚠️ Valuation Compression", "Forward P/E is higher than Trailing P/E, indicating flat or shrinking earnings expansion."))
+        else:
+            signals.append(("🟡 Multiples Missing", "Insufficient P/E data available to gauge valuation trajectory lines."))
         
         # Signal 2: Target Analyst Upside Check
         if target_price and current_price:
@@ -111,7 +125,12 @@ else:
         # Display compiled execution blocks
         for title, desc in signals:
             st.markdown(f"**{title}**")
-            st.info(desc) if "✅" in title else st.warning(desc) if "⚠️" in title or "🟡" in title else st.error(desc)
+            if "✅" in title:
+                st.info(desc)
+            elif "⚠️" in title or "🟡" in title:
+                st.warning(desc)
+            else:
+                st.error(desc)
 
     st.markdown("---")
     st.caption("Data provided automatically via Yahoo Finance API wrapper. Real-time updates cached locally.")
