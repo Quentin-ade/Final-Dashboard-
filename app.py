@@ -172,12 +172,21 @@ def fetch_raw_payload(symbol):
 
 @st.cache_data(ttl=1800)
 def compile_entire_universe(ticker_list):
+    """Compiles thread outputs and runs data validation pipelines."""
     compiled = []
     with ThreadPoolExecutor(max_workers=30) as executor:
         results = executor.map(fetch_raw_payload, ticker_list)
         for r in results:
-            if r is not None:
+            if r is not None and isinstance(r, dict):
                 compiled.append(r)
+                
+    # Structural blueprint safeguard against complete endpoint blackout
+    if not compiled:
+        return pd.DataFrame(columns=[
+            "Ticker", "Name", "Sector", "Price", "FCF", 
+            "Shares", "Beta", "PE", "ROE", "Payout", "ForwardEPS"
+        ])
+        
     return pd.DataFrame(compiled)
 
 # ==============================================================================
@@ -336,7 +345,8 @@ with st.sidebar.form(key="search_interface", clear_on_submit=False):
 # 6. CENTRAL DATA PRE-PROCESSING & ASSUMPTION EXTRACTION
 # ==============================================================================
 with st.spinner("Compiling Security Databases & Discount Vectors..."):
-    universe_df = batch_compile_institutional_universe(INSTITUTIONAL_UNIVERSE)
+    # Unified with Section 3 infrastructure engine
+    universe_df = compile_entire_universe(INSTITUTIONAL_UNIVERSE)
 
 # Index and Benchmark Baseline Ingestion Engine
 @st.cache_data(ttl=1800)
@@ -358,19 +368,25 @@ def fetch_benchmark_indices():
 
 benchmark_data = fetch_benchmark_indices()
 
-if not master_df.empty:
-    master_df["DCF Intrinsic Value"] = master_df.apply(
-        lambda r: run_multistage_dcf(r["FCF"], r["Shares"], wacc_input, pgr_input, r["ROE"], r["Payout"]), axis=1
+# Safeguard engine state before injecting mathematical models
+if universe_df.empty:
+    st.error("⚠️ All market pipeline vectors are empty. Please re-run execution controls.")
+    st.stop()
+
+# Execution of multi-variable metrics across the structured matrix data
+if not universe_df.empty:
+    universe_df["DCF Intrinsic Value"] = universe_df.apply(
+        lambda r: run_multistage_dcf(r["FCF"], r["Shares"], user_wacc, user_pgr, r["ROE"], r["Payout"]), axis=1
     )
-    master_df["Implied Upside %"] = ((master_df["DCF Intrinsic Value"] - master_df["Price"]) / master_df["Price"]) * 100.0
+    universe_df["Implied Upside %"] = ((universe_df["DCF Intrinsic Value"] - universe_df["Price"]) / universe_df["Price"]) * 100.0
     
-    computed_profiles = master_df.apply(
+    computed_profiles = universe_df.apply(
         lambda r: compute_institutional_rating(r["Price"], r["DCF Intrinsic Value"], r["Beta"], r["PE"]), axis=1
     )
     
-    master_df["Quant Rating"] = [p[0] for p in computed_profiles]
-    master_df["Verdict"] = [p[1] for p in computed_profiles]
-    master_df["Justification Matrix"] = [p[2] for p in computed_profiles]
+    universe_df["Quant Rating"] = [p[0] for p in computed_profiles]
+    universe_df["Verdict"] = [p[1] for p in computed_profiles]
+    universe_df["Justification Matrix"] = [p[2] for p in computed_profiles]
 
 # ==============================================================================
 # 7. MAIN AREA: ALPHA MONITORING DASHBOARD (BENCHMARKS + PORTFOLIO SELECTION)
