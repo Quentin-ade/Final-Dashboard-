@@ -678,7 +678,3 @@ st.caption(
     "ð **Disclaimer:** This tool is for educational purposes only. Always conduct your own research "
     "and consult with a financial advisor before making investment decisions."
 )
-f)
-        st.caption("Strategic Indicator: Review how systemic capital changes or growth shocks alter target valuation profiles.")
-else:
-    st.warning("⚠️ High Volume Pipeline Warning: Selected asset currently reports structural historical pricing blockages.")
