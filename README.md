@@ -1,44 +1,44 @@
-# Sovereign Equity Research & Valuation Engine
-**Architect & Engineer:** Quentin Adeniran  
-**Target Matrix:** Multi-Factor Risk Optimization, Custom Cross-Asset Selection, and Corporate Free Cash Flow Analytics
+# Sovereign Equity Research & Portfolio Optimization Terminal
+
+**Architect & Software Engineer:** Quentin Adeniran  
+**Target Infrastructure:** Multi-Factor Risk Matrixing, Dynamic Capital Sizing, and Quantitative Asset Allocation
 
 ---
 
-## 🏛️ Executive Summary & Core Infrastructure
-This repository houses an institutional-grade investment screening framework and quantitative asset valuation system. Engineered using custom-threaded data-ingestion architectures via Python and Streamlit, the terminal processes real-time cross-asset equities across a global liquidity universe to assist allocator teams in identifying asymmetric alpha, pricing dislocations, and optimal capital deployment strategies.
+## 🏛️ System Summary & Structural Integrity
+This repository contains a high-utility, interactive financial terminal designed to model global equities, cross-asset benchmarks, and risk-bucketed investment portfolios. Engineered with parallel multi-threaded concurrency models via Python, the system scrapes real-time metrics across 100+ high-liquidity international tickers. It allows buy-side analysts or asset managers to input unique user profiles, simulate share/warrant position sizing configurations, and run asset tracking against real-time benchmark index feeds ($S\&P 500$, $NASDAQ 100$, $FTSE 100$).
 
-### 🔬 Core Methodological Rigor
-Unlike generic baseline investment tools, this workspace integrates deep fundamental corporate finance theory to safeguard valuation credibility:
-* **Fundamental Growth Rate Derivation:** Rejects linear straight-line projection. Stage-1 revenue and cash flow vectors are mathematically derived via organic retention models ($\text{Growth} = \text{ROE} \times (1 - \text{Payout Ratio})$).
-* **Multi-Stage Competative Fade Vector:** Simulates economic reality by decaying the initial high-growth phase linearly over a discrete five-year window toward steady-state terminal growth equilibrium.
-* **Granular Multi-Factor Rating Matrix:** Equities are scored across three separate risk vectors: Valuation Alpha (Margin of Safety), Systematic Capital Protection ($\beta$ limits), and Multiple Compression Risks ($P/E$ boundaries).
-* **Dynamic Scenario Stress-Testing:** Features an interactive corporate sensitivity matrix evaluating intrinsic valuation swings across shifts in WACC cost centers and perpetual growth assumptions.
+### 🔬 Methodological Finance Innovations
+* **Personalised Strategy Profiling:** Automatically parses financial metrics to dynamically sort assets into unique risk buckets matching explicit user criteria (Conservative, Balanced, or Aggressive Expansion tracks).
+* **Capital Position Sizing Simulator:** Embeds an execution calculator evaluating exact cash commitments, intrinsic dollar distributions, and user-defined target return percentages on live spot inputs.
+* **Organic Capital Growth Vector:** Calculates early-stage cash distributions utilizing firm-specific structural metrics ($\text{Growth} = \text{ROE} \times (1 - \text{Payout Ratio})$) instead of arbitrary straight-line assumptions.
+* **Multi-Scenario Sensitivity Matrix:** Evaluates target asset intrinsic values under severe capital stress variations across custom WACC rate structures and perpetual growth assumptions.
 
 ---
 
-## 🛠️ Repository Architecture & Dependencies
-To replicate the environment or scale the modeling pipelines locally, ensure your local workspace mirrors this layout:
+## 🛠️ Repository Mapping & Dependencies
+Ensure your development folder structure exactly mirrors the environment layout below:
 
 ├── .streamlit/
-│   └── config.toml          # Static Server UI Core Theme Customization
-├── app.py                   # Central Application Execution Script
+│   └── config.toml          # Enforces Core Institutional Dark Theme UI
+├── app.py                   # Central Terminal Application Script
 ├── requirements.txt         # Package Dependency Allocation Array
-└── README.md                # Structural Architectural Documentation
+└── README.md                # Structural System Documentation
 
-### Local Deployment Protocol
-1. Clone the workspace architecture:
+### Local Deployment Sequence
+1. Clone the repository structure:
    ```bash
    git clone https://github.com
    cd YOUR_REPO_NAME
    ```
-2. Initialize and deploy isolated project requirements:
+2. Deploy the verified configuration dependencies:
    ```bash
    pip install -r requirements.txt
    ```
-3. Boot the local operational interface:
+3. Initialize the visual dashboard server locally:
    ```bash
    streamlit run app.py
    ```
 
 ---
-*Disclaimer: This terminal platform functions as a historical and fundamental academic evaluation framework and does not constitute explicit fiduciary asset management or investment banking advice.*
+*Disclaimer: This analytics platform operates strictly as an structural financial modeling exploration space and does not constitute formal fiduciary, investment banking, or legal asset management counsel.*
