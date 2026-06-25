@@ -336,8 +336,7 @@ with st.sidebar.form(key="search_interface", clear_on_submit=False):
 # 6. CENTRAL DATA PRE-PROCESSING & ASSUMPTION EXTRACTION
 # ==============================================================================
 with st.spinner("Compiling Security Databases & Discount Vectors..."):
-    #  FIXED INDENTATION & CORRECT EXECUTION
-universe_df = batch_compile_institutional_universe(INSTITUTIONAL_UNIVERSE)
+    universe_df = batch_compile_institutional_universe(INSTITUTIONAL_UNIVERSE)
 
 # Index and Benchmark Baseline Ingestion Engine
 @st.cache_data(ttl=1800)
