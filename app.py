@@ -14,7 +14,7 @@ warnings.filterwarnings('ignore')
 # 1. PAGE CONFIGURATION & STYLING
 # ==============================================================================
 st.set_page_config(
-    page_title="Sovereign Capital Management Terminal",
+    page_title="Quentin Adeniran's Capital Management Terminal",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -675,6 +675,6 @@ else:
 
 st.markdown("---")
 st.caption(
-    "ð **Disclaimer:** This tool is for educational purposes only. Always conduct your own research "
+    "**Disclaimer:** This tool is for educational purposes only. Always conduct your own research "
     "and consult with a financial advisor before making investment decisions."
 )
