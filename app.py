@@ -1,5 +1,5 @@
 """
-Equity Research & Portfolio Analytics Terminal — v2
+Equity Research & Portfolio Analytics Terminal 
 -----------------------------------------------------
 Single-file Streamlit application:
   1. Market Overview       — relative performance, correlation
@@ -29,7 +29,7 @@ from plotly.subplots import make_subplots
 # PAGE CONFIG
 # --------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Equity Research Terminal",
+    page_title="Equity Research Terminal - Quentin Adeniran",
     page_icon="\U0001F4C8",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -367,7 +367,7 @@ with st.sidebar:
     equity_risk_premium = st.number_input("Equity risk premium (%)", value=5.0, step=0.1) / 100
 
     st.markdown("---")
-    st.caption("Data via Yahoo Finance, cached 5–10 min. Research / educational use — not investment advice.")
+    st.caption("Data via Yahoo Finance, cached 5–10 min. Research / educational use — not investment advice. Enjoy - Quentin Adeniran")
 
 if not tickers:
     st.warning("Add at least one ticker in the sidebar to begin.")
@@ -379,7 +379,7 @@ if not tickers:
 st.markdown(
     """
     <div class="terminal-header">
-        <h1>Equity Research &amp; Portfolio Analytics Terminal</h1>
+        <h1>Equity Research &amp; Portfolio Analytics Terminal By Quentin Adeniran</h1>
         <p>Live Pricing &nbsp;&bull;&nbsp; Technical Studies &nbsp;&bull;&nbsp; Fundamental Valuation
         &nbsp;&bull;&nbsp; Factor Screening &nbsp;&bull;&nbsp; Portfolio Simulation</p>
     </div>
