@@ -1,5 +1,5 @@
 """
-Equity Research & Portfolio Analytics Terminal
+Equity Research & Portfolio Analytics Terminal - Quentin Adeniran
 ------------------------------------------------
 A single-file Streamlit application providing institutional-style
 equity evaluation: live pricing, technical charts, fundamental
