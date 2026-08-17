@@ -1,680 +1,652 @@
+"""
+Equity Research & Portfolio Analytics Terminal
+------------------------------------------------
+A single-file Streamlit application providing institutional-style
+equity evaluation: live pricing, technical charts, fundamental
+valuation, a lightweight DCF, and multi-asset portfolio analytics.
+
+Run locally:
+    pip install -r requirements.txt
+    streamlit run app.py
+"""
+
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 import yfinance as yf
-import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import requests
-from concurrent.futures import ThreadPoolExecutor
-import warnings
 
-warnings.filterwarnings('ignore')
-
-# ==============================================================================
-# 1. PAGE CONFIGURATION & STYLING
-# ==============================================================================
+# --------------------------------------------------------------------------
+# PAGE CONFIG
+# --------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Quentin Adeniran's Capital Management Terminal",
+    page_title="Equity Research Terminal",
+    page_icon="\U0001F4C8",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-st.markdown("""
+# --------------------------------------------------------------------------
+# GLOBAL STYLE — Goldman-style navy / ivory / gold palette
+# --------------------------------------------------------------------------
+st.markdown(
+    """
     <style>
-    html, body, [data-testid="stAppViewContainer"] {
-        font-family: 'Inter', 'Segoe UI', sans-serif;
-        background-color: #0f1419;
-        color: #e2e8f0;
-        scroll-behavior: smooth;
+    @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+    :root{
+        --navy:#0B1F3A;
+        --navy-2:#132A4D;
+        --gold:#B7893F;
+        --gold-soft:#D9B876;
+        --ivory:#F7F5F0;
+        --ink:#101826;
+        --muted:#5B6472;
+        --pos:#1E7A46;
+        --neg:#B3261E;
+        --line:#E4E0D6;
     }
-    
-    h1, h2, h3, h4, .stSubheader {
-        font-family: 'Inter', sans-serif;
-        font-weight: 700;
-        letter-spacing: -0.03em;
-        color: #ffffff;
+    html, body, [class*="css"]{
+        font-family:'Inter', sans-serif;
     }
-    
-    .premium-card {
-        background: linear-gradient(135deg, #1a202c 0%, #111827 100%);
-        border: 1px solid #2d3748;
-        border-radius: 8px;
-        padding: 20px;
-        margin-bottom: 16px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    .stApp{
+        background:var(--ivory);
     }
-    
-    .premium-card:hover {
-        border-color: #3b82f6;
-        box-shadow: 0 8px 16px rgba(59, 130, 246, 0.15);
+    section[data-testid="stSidebar"]{
+        background:var(--navy);
     }
-    
-    div[data-testid="stMetricValue"] {
-        font-family: 'Courier New', monospace;
-        font-size: 24px !important;
-        font-weight: 700 !important;
-        color: #ffffff !important;
+    section[data-testid="stSidebar"] *{
+        color:#EDEFF3 !important;
     }
-    
-    [data-testid="stSidebar"] {
-        background-color: #111827 !important;
-        border-right: 1px solid #2d3748;
+    section[data-testid="stSidebar"] .stTextInput input,
+    section[data-testid="stSidebar"] .stNumberInput input{
+        color:#101826 !important;
     }
-    
-    div.stButton > button {
-        background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%) !important;
-        color: #ffffff !important;
-        border: none !important;
-        border-radius: 6px !important;
-        font-weight: 500;
-        transition: all 0.2s ease-in-out !important;
-        width: 100%;
+
+    /* Header banner */
+    .terminal-header{
+        background:linear-gradient(120deg, var(--navy) 0%, var(--navy-2) 100%);
+        border-radius:10px;
+        padding:28px 34px;
+        margin-bottom:22px;
+        box-shadow:0 8px 24px rgba(11,31,58,0.25);
     }
-    
-    div.stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 12px rgba(37, 99, 235, 0.3);
+    .terminal-header h1{
+        font-family:'Source Serif 4', serif;
+        color:#FBF9F3;
+        font-size:32px;
+        font-weight:700;
+        margin:0 0 4px;
+        letter-spacing:.01em;
     }
-    
-    .metric-box {
-        background: #1a202c;
-        border-left: 3px solid #3b82f6;
-        padding: 12px;
-        border-radius: 4px;
-        margin: 8px 0;
+    .terminal-header p{
+        color:var(--gold-soft);
+        font-family:'Inter', sans-serif;
+        font-size:13.5px;
+        letter-spacing:.14em;
+        text-transform:uppercase;
+        margin:0;
     }
+
+    /* KPI cards */
+    .kpi-card{
+        background:#FFFFFF;
+        border:1px solid var(--line);
+        border-left:4px solid var(--gold);
+        border-radius:8px;
+        padding:16px 18px;
+        box-shadow:0 1px 2px rgba(16,24,38,0.04);
+        height:100%;
+    }
+    .kpi-label{
+        font-size:11px;
+        letter-spacing:.1em;
+        text-transform:uppercase;
+        color:var(--muted);
+        margin-bottom:6px;
+    }
+    .kpi-value{
+        font-family:'Source Serif 4', serif;
+        font-size:24px;
+        font-weight:700;
+        color:var(--ink);
+    }
+    .kpi-delta-pos{color:var(--pos); font-weight:600; font-size:13.5px;}
+    .kpi-delta-neg{color:var(--neg); font-weight:600; font-size:13.5px;}
+
+    /* Section titles */
+    .section-title{
+        font-family:'Source Serif 4', serif;
+        font-size:20px;
+        font-weight:700;
+        color:var(--navy);
+        border-bottom:2px solid var(--gold);
+        padding-bottom:6px;
+        margin:26px 0 14px;
+    }
+
+    .verdict-box{
+        border-radius:8px;
+        padding:18px 22px;
+        font-size:14.5px;
+        line-height:1.55;
+        border:1px solid var(--line);
+        background:#FFFFFF;
+    }
+
+    .stTabs [data-baseweb="tab-list"]{gap:6px;}
+    .stTabs [data-baseweb="tab"]{
+        background:#FFFFFF;
+        border:1px solid var(--line);
+        border-radius:6px 6px 0 0;
+        padding:10px 18px;
+        font-weight:600;
+        color:var(--navy);
+    }
+    .stTabs [aria-selected="true"]{
+        background:var(--navy) !important;
+        color:#F7F5F0 !important;
+    }
+
+    footer{visibility:hidden;}
+    #MainMenu{visibility:hidden;}
     </style>
-""", unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True,
+)
 
-# ==============================================================================
-# 2. INSTITUTIONAL STOCK UNIVERSE (100+ HIGH-LIQUIDITY EQUITIES)
-# ==============================================================================
-INSTITUTIONAL_UNIVERSE = [
-    # Technology & Semiconductors
-    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "AVGO", "ORCL", "AMD",
-    "NFLX", "CRM", "ADBE", "CSCO", "INTC", "QCOM", "TXN", "AMAT", "MU", "LRCX",
-    "ASML", "PANW", "SNOW", "PLTR", "NOW", "WDAY", "TEAM", "DDOG", "CRWD", "SQ",
-    "INTU", "ANET", "MCHP", "MPWR", "NXPI", "KLAC",
-    # Financials & Banking
-    "JPM", "BAC", "WFC", "C", "GS", "MS", "AXP", "V", "MA", "PYPL",
-    "BLK", "BX", "KKR", "APO", "SCHW", "AIG", "MET", "PRU", "PGR", "TRV",
-    "CB", "MMC", "AON", "AJG", "COF",
-    # Energy & Industrials
-    "XOM", "CVX", "COP", "CAT", "GE", "HON", "UNP", "LMT", "RTX", "NOC",
-    "BA", "DE", "MMM", "FDX", "UPS", "NSC", "CSX", "EMR",
-    # Healthcare & Pharma
-    "LLY", "JNJ", "UNH", "PFE", "ABBV", "MRK", "TMO", "DHR", "ABT",
-    "BMY", "AMGN", "GILD", "ISRG", "VRTX", "REGN", "MDT", "HCA",
-    # Consumer & Defensive
-    "WMT", "COST", "TGT", "HD", "LOW", "NKE", "SBUX", "EL", "CL", "PG",
-    "KO", "PEP", "PM", "MO", "MDLZ", "BABA", "PDD"
-]
+PLOTLY_TEMPLATE = "plotly_white"
+NAVY = "#0B1F3A"
+GOLD = "#B7893F"
+POS = "#1E7A46"
+NEG = "#B3261E"
+GREY = "#8A93A3"
 
-# ==============================================================================
-# 3. SESSION STATE INITIALIZATION
-# ==============================================================================
-if "active_ticker" not in st.session_state:
-    st.session_state["active_ticker"] = "AAPL"
-if "user_name" not in st.session_state:
-    st.session_state["user_name"] = "Investor"
+# --------------------------------------------------------------------------
+# DATA HELPERS (cached — real-time-ish, refreshed every 5 minutes)
+# --------------------------------------------------------------------------
+@st.cache_data(ttl=300, show_spinner=False)
+def load_price_history(ticker: str, period: str, interval: str) -> pd.DataFrame:
+    df = yf.Ticker(ticker).history(period=period, interval=interval)
+    if df is None or df.empty:
+        return pd.DataFrame()
+    df = df.reset_index()
+    date_col = "Date" if "Date" in df.columns else "Datetime"
+    df = df.rename(columns={date_col: "Date"})
+    return df
 
-# Setup custom HTTP session
-custom_session = requests.Session()
-custom_session.headers.update({
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-})
 
-# ==============================================================================
-# 4. DATA FETCHING FUNCTIONS
-# ==============================================================================
-@st.cache_data(ttl=1800)
-def fetch_stock_data(symbol):
-    """Fetch comprehensive stock data for a single ticker."""
+@st.cache_data(ttl=300, show_spinner=False)
+def load_fundamentals(ticker: str) -> dict:
     try:
-        tk = yf.Ticker(symbol, session=custom_session)
-        fast = tk.fast_info
-        info = tk.info
+        info = yf.Ticker(ticker).get_info()
+    except Exception:
+        info = {}
+    return info or {}
 
-        # Get price with fallbacks
-        price = fast.get('last_price') or info.get('currentPrice') or info.get('navPrice')
-        if not price:
-            hist = tk.history(period="1d")
-            if not hist.empty:
-                price = float(hist['Close'].iloc[-1])
-            else:
-                return None
 
-        # Extract financial metrics
-        fcf = info.get('freeCashflow') or info.get('operatingCashflow', 0.0) * 0.85
-        shares = fast.get('shares') or info.get('sharesOutstanding') or 1.0
-        beta = info.get('beta') or 1.0
-        pe = info.get('trailingPE') or info.get('forwardPE') or 0.0
-        roe = info.get('returnOnEquity') or 0.12
-        payout = info.get('payoutRatio') or 0.20
-        forward_eps = info.get('forwardEps') or (price / pe if pe > 0 else 1.0)
+def fmt_num(value, prefix="", suffix="", decimals=2, big=False):
+    if value is None or value == "" or (isinstance(value, float) and np.isnan(value)):
+        return "—"
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return "—"
+    if big:
+        for unit, div in [("T", 1e12), ("B", 1e9), ("M", 1e6)]:
+            if abs(value) >= div:
+                return f"{prefix}{value/div:,.{decimals}f}{unit}{suffix}"
+        return f"{prefix}{value:,.{decimals}f}{suffix}"
+    return f"{prefix}{value:,.{decimals}f}{suffix}"
 
-        return {
-            "Ticker": symbol,
-            "Name": info.get('longName', symbol),
-            "Sector": info.get('sector', 'Global Markets'),
-            "Price": float(price),
-            "FCF": float(fcf),
-            "Shares": float(shares),
-            "Beta": float(beta),
-            "PE": float(pe),
-            "ROE": float(roe),
-            "Payout": float(payout),
-            "ForwardEPS": float(forward_eps)
-        }
-    except Exception as e:
+
+def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    out["SMA20"] = out["Close"].rolling(20).mean()
+    out["SMA50"] = out["Close"].rolling(50).mean()
+    out["SMA200"] = out["Close"].rolling(200).mean()
+
+    delta = out["Close"].diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.rolling(14).mean()
+    avg_loss = loss.rolling(14).mean()
+    rs = avg_gain / avg_loss.replace(0, np.nan)
+    out["RSI14"] = 100 - (100 / (1 + rs))
+
+    ema12 = out["Close"].ewm(span=12, adjust=False).mean()
+    ema26 = out["Close"].ewm(span=26, adjust=False).mean()
+    out["MACD"] = ema12 - ema26
+    out["MACD_SIGNAL"] = out["MACD"].ewm(span=9, adjust=False).mean()
+    out["MACD_HIST"] = out["MACD"] - out["MACD_SIGNAL"]
+
+    out["BB_MID"] = out["Close"].rolling(20).mean()
+    bb_std = out["Close"].rolling(20).std()
+    out["BB_UP"] = out["BB_MID"] + 2 * bb_std
+    out["BB_DN"] = out["BB_MID"] - 2 * bb_std
+    return out
+
+
+def simple_dcf(fcf: float, growth: float, discount: float, terminal_growth: float,
+                years: int, net_debt: float, shares_out: float):
+    if fcf is None or fcf <= 0 or shares_out in (None, 0):
         return None
+    cash_flows = []
+    cf = fcf
+    for _ in range(years):
+        cf = cf * (1 + growth)
+        cash_flows.append(cf)
+    terminal_value = cash_flows[-1] * (1 + terminal_growth) / (discount - terminal_growth)
+    pv = sum(cf / ((1 + discount) ** (i + 1)) for i, cf in enumerate(cash_flows))
+    pv_terminal = terminal_value / ((1 + discount) ** years)
+    enterprise_value = pv + pv_terminal
+    equity_value = enterprise_value - (net_debt or 0)
+    fair_value_per_share = equity_value / shares_out
+    return {
+        "enterprise_value": enterprise_value,
+        "equity_value": equity_value,
+        "fair_value_per_share": fair_value_per_share,
+    }
 
-@st.cache_data(ttl=1800)
-def compile_universe(ticker_list):
-    """Fetch all stock data concurrently."""
-    compiled = []
-    with ThreadPoolExecutor(max_workers=25) as executor:
-        results = executor.map(fetch_stock_data, ticker_list)
-        for r in results:
-            if r is not None and isinstance(r, dict):
-                compiled.append(r)
 
-    if not compiled:
-        return pd.DataFrame(columns=[
-            "Ticker", "Name", "Sector", "Price", "FCF",
-            "Shares", "Beta", "PE", "ROE", "Payout", "ForwardEPS"
-        ])
-
-    return pd.DataFrame(compiled)
-
-@st.cache_data(ttl=1800)
-def fetch_benchmark_indices():
-    """Fetch major market indices."""
-    indices = {"S&P 500": "^GSPC", "NASDAQ-100": "^NDX", "FTSE 100": "^FTSE"}
-    data = {}
-    
-    for name, sym in indices.items():
-        try:
-            tk = yf.Ticker(sym, session=custom_session)
-            hist = tk.history(period="5d")
-            if not hist.empty:
-                close_p = hist['Close'].iloc[-1]
-                prev_p = hist['Close'].iloc[-2]
-                pct_chg = ((close_p - prev_p) / prev_p) * 100.0
-                data[name] = (close_p, pct_chg)
-        except Exception:
-            data[name] = (0.0, 0.0)
-    
-    return data
-
-# ==============================================================================
-# 5. DCF VALUATION MODEL
-# ==============================================================================
-def calculate_dcf_intrinsic_value(fcf, shares, wacc_pct, terminal_growth_pct, roe, payout, periods=5):
-    """
-    Discounted Cash Flow Model
-    Args:
-        fcf: Free cash flow
-        shares: Outstanding shares
-        wacc_pct: Weighted average cost of capital (%)
-        terminal_growth_pct: Terminal growth rate (%)
-        roe: Return on equity
-        payout: Payout ratio
-        periods: Projection period (years)
-    """
-    wacc = wacc_pct / 100.0
-    g_terminal = terminal_growth_pct / 100.0
-
-    if wacc <= g_terminal:
-        return 0.0
-
-    # Fundamental growth rate based on retained earnings
-    fundamental_g = max(min(roe * (1 - payout), 0.18), 0.03)
-
-    discounted_fcf_sum = 0.0
-    current_fcf = fcf if fcf > 0 else (shares * 2.50)
-
-    # Stage 1: Explicit Projection (5 years)
-    for t in range(1, periods + 1):
-        # Linear step down toward terminal growth
-        growth_factor = fundamental_g - ((fundamental_g - g_terminal) * (t / periods))
-        current_fcf *= (1 + growth_factor)
-        discounted_fcf_sum += current_fcf / ((1 + wacc) ** t)
-
-    # Stage 2: Terminal Value
-    terminal_value = (current_fcf * (1 + g_terminal)) / (wacc - g_terminal)
-    discounted_terminal_value = terminal_value / ((1 + wacc) ** periods)
-
-    implied_enterprise_value = discounted_fcf_sum + discounted_terminal_value
-    return max(implied_enterprise_value / shares, 0.0)
-
-# ==============================================================================
-# 6. RATING SYSTEM
-# ==============================================================================
-def compute_investment_rating(price, intrinsic, beta, pe):
-    """
-    Multi-factor investment rating system
-    Returns: (rating, verdict, reasoning)
-    """
-    if price <= 0:
-        return 1.0, "EXCLUDED", ["Invalid price data"]
-
-    margin_of_safety = ((intrinsic - price) / price) * 100.0
-    score_cards = []
-
-    # Factor 1: Valuation (Max 2.0 points)
-    val_pts = 0.0
-    if margin_of_safety >= 35.0:
-        val_pts = 2.0
-    elif margin_of_safety >= 15.0:
-        val_pts = 1.5
-    elif margin_of_safety >= 0.0:
-        val_pts = 1.0
-    elif margin_of_safety >= -15.0:
-        val_pts = 0.5
-    
-    score_cards.append(f"Valuation: {margin_of_safety:.1f}% margin of safety â {val_pts} pts")
-
-    # Factor 2: Volatility/Risk (Max 1.5 points)
-    risk_pts = 0.0
-    if beta < 0.85:
-        risk_pts = 1.5
-    elif beta <= 1.20:
-        risk_pts = 1.0
-    elif beta <= 1.60:
-        risk_pts = 0.5
-    
-    score_cards.append(f"Risk (Beta {beta:.2f}x): {risk_pts} pts")
-
-    # Factor 3: P/E Multiple (Max 1.5 points)
-    multiple_pts = 0.0
-    if 0 < pe <= 16.0:
-        multiple_pts = 1.5
-    elif 16.0 < pe <= 28.0:
-        multiple_pts = 1.0
-    elif 28.0 < pe <= 45.0:
-        multiple_pts = 0.5
-    
-    score_cards.append(f"P/E Multiple ({pe:.1f}x): {multiple_pts} pts")
-
-    final_rating = round(val_pts + risk_pts + multiple_pts, 1)
-    final_rating = max(min(final_rating, 5.0), 1.0)
-
-    # Investment Verdict
-    if final_rating >= 4.2:
-        verdict = "ð¢ STRONG BUY"
-    elif final_rating >= 3.4:
-        verdict = "ð¢ BUY"
-    elif final_rating >= 2.4:
-        verdict = "ð¡ HOLD"
-    else:
-        verdict = "ð´ SELL"
-
-    return final_rating, verdict, score_cards
-
-# ==============================================================================
-# 7. SIDEBAR CONTROLS
-# ==============================================================================
+# --------------------------------------------------------------------------
+# SIDEBAR CONTROLS
+# --------------------------------------------------------------------------
 with st.sidebar:
-    st.title("âï¸ Dashboard Controls")
-
-    user_name = st.text_input("Your Name:", value=st.session_state["user_name"])
-    st.session_state["user_name"] = user_name
-
-    st.markdown("---")
-    st.subheader("ð Valuation Parameters")
-
-    wacc_input = st.slider(
-        "WACC (Weighted Avg Cost of Capital) %",
-        min_value=4.0,
-        max_value=16.0,
-        value=8.5,
-        step=0.1,
-        help="Discount rate for future cash flows. Higher = more conservative valuation"
+    st.markdown("### \U0001F4CA  Terminal Controls")
+    tickers_raw = st.text_input(
+        "Watchlist (comma-separated tickers)",
+        value="AAPL, MSFT, NVDA, JPM, GS",
     )
+    tickers = [t.strip().upper() for t in tickers_raw.split(",") if t.strip()]
+    primary_ticker = st.selectbox("Primary equity for deep-dive", options=tickers or ["AAPL"])
 
-    pgr_input = st.slider(
-        "Terminal Growth Rate %",
-        min_value=0.5,
-        max_value=4.5,
-        value=2.2,
-        step=0.1,
-        help="Long-term perpetual growth rate. Typically matches GDP growth"
+    period = st.selectbox(
+        "History window",
+        options=["1mo", "3mo", "6mo", "1y", "2y", "5y", "max"],
+        index=3,
     )
+    interval = st.selectbox(
+        "Bar interval",
+        options=["1d", "1wk", "1mo"],
+        index=0,
+    )
+    benchmark = st.text_input("Benchmark index", value="^GSPC")
 
     st.markdown("---")
-    st.subheader("ð¯ Quick Stock Selection")
-
-    col1, col2, col3 = st.columns(3)
-    if col1.button("NVDA", use_container_width=True):
-        st.session_state["active_ticker"] = "NVDA"
-    if col2.button("LLY", use_container_width=True):
-        st.session_state["active_ticker"] = "LLY"
-    if col3.button("MSFT", use_container_width=True):
-        st.session_state["active_ticker"] = "MSFT"
+    st.markdown("### \U0001F9EE DCF Assumptions")
+    growth_rate = st.slider("FCF growth rate (yrs 1-5)", 0.0, 0.30, 0.08, 0.01)
+    discount_rate = st.slider("Discount rate (WACC)", 0.04, 0.15, 0.09, 0.005)
+    terminal_growth = st.slider("Terminal growth rate", 0.0, 0.05, 0.025, 0.0025)
 
     st.markdown("---")
-    st.subheader("ð Search Stock")
+    st.caption("Data via Yahoo Finance. Cached 5 min. For research / educational use — not investment advice.")
 
-    with st.form(key="search_form"):
-        ticker_input = st.text_input(
-            "Enter Ticker Symbol:",
-            value=st.session_state["active_ticker"],
-            placeholder="e.g., AAPL"
-        ).upper().strip()
-        search_btn = st.form_submit_button("Search", use_container_width=True)
-
-        if search_btn and ticker_input:
-            st.session_state["active_ticker"] = ticker_input
-
-# ==============================================================================
-# 8. MAIN CONTENT AREA
-# ==============================================================================
-st.title("ðï¸ Sovereign Capital Management Terminal")
-st.markdown(f"Welcome back, **{user_name}**! Let's find your next great investment.")
-
-# Load universe data
-with st.spinner("ð¥ Loading market data..."):
-    universe_df = compile_universe(INSTITUTIONAL_UNIVERSE)
-    benchmark_data = fetch_benchmark_indices()
-
-if universe_df.empty:
-    st.error("â Unable to load market data. Please check your internet connection and try again.")
+if not tickers:
+    st.warning("Add at least one ticker in the sidebar to begin.")
     st.stop()
 
-# ==============================================================================
-# 9. DISPLAY MARKET OVERVIEW
-# ==============================================================================
-st.subheader("ð Market Overview")
-b_cols = st.columns(len(benchmark_data))
-for idx, (b_name, (b_val, b_chg)) in enumerate(benchmark_data.items()):
-    b_cols[idx].metric(
-        b_name,
-        f"{b_val:,.0f}",
-        f"{b_chg:+.2f}%",
-        delta_color="normal"
-    )
-
-# ==============================================================================
-# 10. CALCULATE VALUATIONS FOR ALL STOCKS
-# ==============================================================================
-master_df = universe_df.copy()
-
-master_df["DCF Intrinsic Value"] = master_df.apply(
-    lambda r: calculate_dcf_intrinsic_value(
-        r["FCF"], r["Shares"], wacc_input, pgr_input, r["ROE"], r["Payout"]
-    ),
-    axis=1
+# --------------------------------------------------------------------------
+# HEADER
+# --------------------------------------------------------------------------
+st.markdown(
+    """
+    <div class="terminal-header">
+        <h1>Equity Research &amp; Portfolio Analytics Terminal</h1>
+        <p>Live Pricing &nbsp;&bull;&nbsp; Technical Studies &nbsp;&bull;&nbsp; Fundamental Valuation &nbsp;&bull;&nbsp; Portfolio Risk</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
-master_df["Implied Upside %"] = (
-    (master_df["DCF Intrinsic Value"] - master_df["Price"]) / master_df["Price"]
-) * 100.0
+# --------------------------------------------------------------------------
+# KPI ROW — primary ticker snapshot
+# --------------------------------------------------------------------------
+hist = load_price_history(primary_ticker, period="6mo", interval="1d")
+info = load_fundamentals(primary_ticker)
 
-# Calculate ratings
-rating_results = master_df.apply(
-    lambda r: compute_investment_rating(r["Price"], r["DCF Intrinsic Value"], r["Beta"], r["PE"]),
-    axis=1
-)
+if hist.empty:
+    st.error(f"No price data returned for {primary_ticker}. Check the ticker symbol.")
+    st.stop()
 
-master_df["Rating"] = [p[0] for p in rating_results]
-master_df["Verdict"] = [p[1] for p in rating_results]
-master_df["Reasoning"] = [p[2] for p in rating_results]
+last_close = hist["Close"].iloc[-1]
+prev_close = hist["Close"].iloc[-2] if len(hist) > 1 else last_close
+day_change = last_close - prev_close
+day_change_pct = (day_change / prev_close * 100) if prev_close else 0
 
-# ==============================================================================
-# 11. STOCK SCREENING INTERFACE
-# ==============================================================================
-st.markdown("---")
-st.subheader("ð¬ Stock Screening Tool")
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    verdict_filter = st.multiselect(
-        "Filter by Verdict:",
-        options=sorted(master_df["Verdict"].unique()),
-        default=sorted(master_df["Verdict"].unique())
-    )
-
-with col2:
-    sector_filter = st.multiselect(
-        "Filter by Sector:",
-        options=sorted(master_df["Sector"].unique()),
-        default=sorted(master_df["Sector"].unique())
-    )
-
-with col3:
-    min_rating = st.slider("Minimum Rating:", 1.0, 5.0, 2.0, 0.1)
-
-# Apply filters
-filtered_df = master_df[
-    (master_df["Verdict"].isin(verdict_filter)) &
-    (master_df["Sector"].isin(sector_filter)) &
-    (master_df["Rating"] >= min_rating)
-].sort_values(by="Implied Upside %", ascending=False)
-
-# Display filtered results
-st.dataframe(
-    filtered_df[[
-        "Ticker", "Name", "Sector", "Price", "DCF Intrinsic Value",
-        "Implied Upside %", "Rating", "Verdict", "Beta", "PE"
-    ]].style.format({
-        "Price": "${:,.2f}",
-        "DCF Intrinsic Value": "${:,.2f}",
-        "Implied Upside %": "{:+.1f}%",
-        "Rating": "{:.1f}â­",
-        "Beta": "{:.2f}x",
-        "PE": "{:.1f}x"
-    }).background_gradient(subset=["Implied Upside %"], cmap="RdYlGn", vmin=-50, vmax=50),
-    use_container_width=True,
-    height=400
-)
-
-# ==============================================================================
-# 12. DEEP DIVE ANALYSIS FOR SELECTED STOCK
-# ==============================================================================
-st.markdown("---")
-target = st.session_state["active_ticker"]
-st.subheader(f"ð¬ Deep Dive Analysis: {target}")
-
-try:
-    target_tk = yf.Ticker(target, session=custom_session)
-    history_short = target_tk.history(period="5d", interval="15m")
-    history_long = target_tk.history(period="1y")
-    target_info = target_tk.info
-
-    if history_long.empty:
-        st.error(f"â Could not retrieve data for {target}")
-        st.stop()
-
-    # Extract metrics
-    spot_price = float(history_short['Close'].iloc[-1]) if not history_short.empty else float(
-        history_long['Close'].iloc[-1])
-    t_fcf = target_info.get('freeCashflow') or target_info.get('operatingCashflow', 0.0) * 0.85
-    t_shares = target_tk.fast_info.get('shares') or target_info.get('sharesOutstanding') or 1.0
-    t_beta = target_info.get('beta') or 1.0
-    t_pe = target_info.get('trailingPE') or target_info.get('forwardPE') or 0.0
-    t_roe = target_info.get('returnOnEquity') or 0.12
-    t_payout = target_info.get('payoutRatio') or 0.20
-
-    t_intrinsic = calculate_dcf_intrinsic_value(t_fcf, t_shares, wacc_input, pgr_input, t_roe, t_payout)
-    t_rating, t_verdict, t_reasons = compute_investment_rating(spot_price, t_intrinsic, t_beta, t_pe)
-    t_upside = ((t_intrinsic - spot_price) / spot_price) * 100.0
-
-    # Display key metrics
-    col1, col2, col3, col4, col5 = st.columns(5)
-    col1.metric("Current Price", f"${spot_price:,.2f}")
-    col2.metric("DCF Value", f"${t_intrinsic:,.2f}")
-    col3.metric("Upside Potential", f"{t_upside:+.1f}%")
-    col4.metric("Rating", f"{t_rating:.1f}â­")
-    col5.metric("Verdict", t_verdict)
-
-    # Position size calculator
-    st.markdown("### ð° Position Sizing Calculator")
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        shares_to_buy = st.number_input(
-            "Number of Shares:",
-            min_value=1.0,
-            value=100.0,
-            step=10.0
-        )
-
-    with col2:
-        target_price = st.number_input(
-            "Target Sell Price ($):",
-            min_value=0.1,
-            value=float(round(t_intrinsic, 2)),
-            step=0.5
-        )
-
-    # Calculate position metrics
-    total_cost = shares_to_buy * spot_price
-    terminal_value = shares_to_buy * target_price
-    roi = ((target_price - spot_price) / spot_price) * 100.0
-
-    with col3:
+k1, k2, k3, k4, k5, k6 = st.columns(6)
+kpi_data = [
+    (k1, "Last Price", f"${last_close:,.2f}", day_change_pct),
+    (k2, "Market Cap", fmt_num(info.get("marketCap"), prefix="$", big=True), None),
+    (k3, "P/E (TTM)", fmt_num(info.get("trailingPE")), None),
+    (k4, "Dividend Yield", fmt_num((info.get("dividendYield") or 0) * (1 if (info.get("dividendYield") or 0) > 1 else 100), suffix="%"), None),
+    (k5, "Beta", fmt_num(info.get("beta")), None),
+    (k6, "52-Wk Range", f"{fmt_num(info.get('fiftyTwoWeekLow'), prefix='$')} – {fmt_num(info.get('fiftyTwoWeekHigh'), prefix='$')}", None),
+]
+for col, label, value, delta in kpi_data:
+    with col:
+        delta_html = ""
+        if delta is not None:
+            cls = "kpi-delta-pos" if delta >= 0 else "kpi-delta-neg"
+            arrow = "▲" if delta >= 0 else "▼"
+            delta_html = f'<div class="{cls}">{arrow} {abs(delta):.2f}% today</div>'
         st.markdown(
             f"""
-            **Investment Summary:**
-            - **Total Investment:** ${total_cost:,.2f}
-            - **Potential Return:** ${terminal_value:,.2f}
-            - **Expected ROI:** {roi:+.1f}%
-            """
+            <div class="kpi-card">
+                <div class="kpi-label">{label}</div>
+                <div class="kpi-value">{value}</div>
+                {delta_html}
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
 
-    # Chart
-    st.markdown("### ð Price Chart & Moving Averages")
-
-    history_long['SMA50'] = history_long['Close'].rolling(window=50).mean()
-    history_long['SMA200'] = history_long['Close'].rolling(window=200).mean()
-
-    fig = make_subplots(
-        rows=2, cols=1, shared_xaxes=True,
-        vertical_spacing=0.08,
-        row_heights=[0.7, 0.3]
-    )
-
-    # Candlestick
-    fig.add_trace(
-        go.Candlestick(
-            x=history_long.index,
-            open=history_long['Open'],
-            high=history_long['High'],
-            low=history_long['Low'],
-            close=history_long['Close'],
-            name="Price"
-        ),
-        row=1, col=1
-    )
-
-    # Moving Averages
-    fig.add_trace(
-        go.Scatter(x=history_long.index, y=history_long['SMA50'], name="50-MA", line=dict(color='orange', width=1)),
-        row=1, col=1
-    )
-    fig.add_trace(
-        go.Scatter(x=history_long.index, y=history_long['SMA200'], name="200-MA", line=dict(color='red', width=1)),
-        row=1, col=1
-    )
-
-    # Volume
-    fig.add_trace(
-        go.Bar(x=history_long.index, y=history_long['Volume'], name="Volume", marker_color='#3b82f6'),
-        row=2, col=1
-    )
-
-    fig.update_layout(
-        template="plotly_dark",
-        height=500,
-        hovermode="x unified",
-        xaxis_rangeslider_visible=False
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-    # Rating breakdown
-    st.markdown("### ð Investment Rating Breakdown")
-    for reason in t_reasons:
-        st.info(f"â {reason}")
-
-    # Valuation sensitivity
-    st.markdown("### ð§® Valuation Sensitivity Analysis")
-    st.write("How your DCF valuation changes with different assumptions:")
-
-    wacc_range = [wacc_input - 1.0, wacc_input, wacc_input + 1.0]
-    pgr_range = [pgr_input - 0.5, pgr_input, pgr_input + 0.5]
-
-    sensitivity_data = []
-    for w in wacc_range:
-        row = {}
-        for p in pgr_range:
-            val = calculate_dcf_intrinsic_value(t_fcf, t_shares, w, p, t_roe, t_payout)
-            row[f"{p:.1f}%"] = f"${val:,.2f}"
-        sensitivity_data.append(row)
-
-    sensitivity_df = pd.DataFrame(sensitivity_data, index=[f"{w:.1f}%" for w in wacc_range])
-    st.table(sensitivity_df)
-
-except Exception as e:
-    st.error(f"â Error analyzing {target}: {str(e)}")
-
-# ==============================================================================
-# 13. PORTFOLIO RECOMMENDATIONS
-# ==============================================================================
-st.markdown("---")
-st.subheader("ð¼ Portfolio Recommendations")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    risk_profile = st.selectbox(
-        "Select Your Risk Profile:",
-        ["ð¡ï¸ Conservative", "âï¸ Balanced", "ð Aggressive"]
-    )
-
-    min_return = st.slider("Minimum Expected Return (%):", 0.0, 50.0, 10.0, 1.0)
-
-with col2:
-    if risk_profile == "ð¡ï¸ Conservative":
-        rec_df = master_df[
-            (master_df["Beta"] <= 1.0) &
-            (master_df["Implied Upside %"] >= min_return)
-        ].sort_values(by="Rating", ascending=False).head(5)
-        strategy_txt = "Low-volatility stocks with stable cash flows and strong downside protection"
-
-    elif risk_profile == "âï¸ Balanced":
-        rec_df = master_df[
-            (master_df["Beta"] > 0.8) &
-            (master_df["Beta"] <= 1.3) &
-            (master_df["Implied Upside %"] >= min_return)
-        ].sort_values(by="Implied Upside %", ascending=False).head(5)
-        strategy_txt = "Mix of growth and stability with reasonable risk-adjusted returns"
-
-    else:  # Aggressive
-        rec_df = master_df[
-            (master_df["Beta"] > 1.2) &
-            (master_df["Implied Upside %"] >= min_return)
-        ].sort_values(by="Implied Upside %", ascending=False).head(5)
-        strategy_txt = "High-growth potential stocks with higher volatility"
-
-    st.info(f"**Strategy:** {strategy_txt}")
-
-if not rec_df.empty:
-    st.dataframe(
-        rec_df[["Ticker", "Name", "Price", "Implied Upside %", "Rating", "Verdict"]].style.format({
-            "Price": "${:,.2f}",
-            "Implied Upside %": "{:+.1f}%",
-            "Rating": "{:.1f}â­"
-        }),
-        use_container_width=True
-    )
-else:
-    st.warning("â ï¸ No stocks match your criteria. Try adjusting the minimum return or risk profile.")
-
-st.markdown("---")
-st.caption(
-    "**Disclaimer:** This tool is for educational purposes only. Always conduct your own research "
-    "and consult with a financial advisor before making investment decisions."
+# --------------------------------------------------------------------------
+# TABS
+# --------------------------------------------------------------------------
+tab_overview, tab_deepdive, tab_valuation, tab_portfolio = st.tabs(
+    ["\U0001F30D Market Overview", "\U0001F50E Equity Deep Dive", "\U0001F4B0 Valuation & DCF", "\U0001F4BC Portfolio Analytics"]
 )
+
+# ===================== TAB 1 — MARKET OVERVIEW ============================
+with tab_overview:
+    st.markdown('<div class="section-title">Relative Performance vs. Benchmark</div>', unsafe_allow_html=True)
+
+    perf_frames = {}
+    for t in tickers + ([benchmark] if benchmark else []):
+        d = load_price_history(t, period=period, interval=interval)
+        if not d.empty:
+            d = d.set_index("Date")["Close"]
+            perf_frames[t] = (d / d.iloc[0] - 1) * 100
+
+    if perf_frames:
+        perf_df = pd.DataFrame(perf_frames)
+        fig = go.Figure()
+        palette = [NAVY, GOLD, POS, "#6C5CE7", "#0984E3", "#D63031", "#00897B"]
+        for i, col in enumerate(perf_df.columns):
+            width = 3 if col == benchmark else 2
+            dash = "dot" if col == benchmark else "solid"
+            fig.add_trace(go.Scatter(
+                x=perf_df.index, y=perf_df[col],
+                name=col, mode="lines",
+                line=dict(width=width, color=palette[i % len(palette)], dash=dash),
+            ))
+        fig.update_layout(
+            template=PLOTLY_TEMPLATE, height=440,
+            yaxis_title="Cumulative Return (%)",
+            hovermode="x unified",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+            margin=dict(l=10, r=10, t=10, b=10),
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    c1, c2 = st.columns([1.3, 1])
+    with c1:
+        st.markdown('<div class="section-title">Watchlist Snapshot</div>', unsafe_allow_html=True)
+        rows = []
+        for t in tickers:
+            d = load_price_history(t, period="5d", interval="1d")
+            fi = load_fundamentals(t)
+            if d.empty:
+                continue
+            last = d["Close"].iloc[-1]
+            prev = d["Close"].iloc[-2] if len(d) > 1 else last
+            chg = (last - prev) / prev * 100 if prev else 0
+            rows.append({
+                "Ticker": t,
+                "Name": fi.get("shortName", t),
+                "Price": last,
+                "Chg %": chg,
+                "Mkt Cap": fmt_num(fi.get("marketCap"), prefix="$", big=True),
+                "P/E": fmt_num(fi.get("trailingPE")),
+                "Sector": fi.get("sector", "—"),
+            })
+        if rows:
+            wl = pd.DataFrame(rows)
+            st.dataframe(
+                wl.style.format({"Price": "${:,.2f}", "Chg %": "{:+.2f}%"})
+                  .map(lambda v: f"color: {POS}" if isinstance(v, (int, float)) and v >= 0 else f"color: {NEG}", subset=["Chg %"]),
+                use_container_width=True, hide_index=True,
+            )
+
+    with c2:
+        st.markdown('<div class="section-title">Correlation Matrix</div>', unsafe_allow_html=True)
+        if perf_frames and len(perf_frames) > 1:
+            corr = pd.DataFrame(perf_frames).pct_change().corr()
+            fig_corr = go.Figure(data=go.Heatmap(
+                z=corr.values, x=corr.columns, y=corr.columns,
+                colorscale=[[0, "#B3261E"], [0.5, "#F7F5F0"], [1, NAVY]],
+                zmin=-1, zmax=1, text=np.round(corr.values, 2), texttemplate="%{text}",
+            ))
+            fig_corr.update_layout(template=PLOTLY_TEMPLATE, height=360, margin=dict(l=10, r=10, t=10, b=10))
+            st.plotly_chart(fig_corr, use_container_width=True)
+
+# ===================== TAB 2 — EQUITY DEEP DIVE ============================
+with tab_deepdive:
+    ddf = load_price_history(primary_ticker, period=period, interval=interval)
+    if ddf.empty:
+        st.warning("No data for this ticker/period.")
+    else:
+        ind = compute_indicators(ddf)
+
+        st.markdown(f'<div class="section-title">{primary_ticker} — Price, Volume &amp; Moving Averages</div>', unsafe_allow_html=True)
+        fig = make_subplots(
+            rows=3, cols=1, shared_xaxes=True, row_heights=[0.55, 0.15, 0.3],
+            vertical_spacing=0.04,
+            specs=[[{"secondary_y": False}], [{"secondary_y": False}], [{"secondary_y": False}]],
+        )
+        fig.add_trace(go.Candlestick(
+            x=ind["Date"], open=ind["Open"], high=ind["High"], low=ind["Low"], close=ind["Close"],
+            name="Price", increasing_line_color=POS, decreasing_line_color=NEG,
+        ), row=1, col=1)
+        fig.add_trace(go.Scatter(x=ind["Date"], y=ind["SMA20"], name="SMA 20", line=dict(color=GOLD, width=1.4)), row=1, col=1)
+        fig.add_trace(go.Scatter(x=ind["Date"], y=ind["SMA50"], name="SMA 50", line=dict(color=NAVY, width=1.4)), row=1, col=1)
+        fig.add_trace(go.Scatter(x=ind["Date"], y=ind["BB_UP"], name="BB Upper", line=dict(color=GREY, width=1, dash="dot")), row=1, col=1)
+        fig.add_trace(go.Scatter(x=ind["Date"], y=ind["BB_DN"], name="BB Lower", line=dict(color=GREY, width=1, dash="dot"), fill="tonexty", fillcolor="rgba(138,147,163,0.08)"), row=1, col=1)
+
+        vol_colors = [POS if c >= o else NEG for o, c in zip(ind["Open"], ind["Close"])]
+        fig.add_trace(go.Bar(x=ind["Date"], y=ind["Volume"], name="Volume", marker_color=vol_colors, opacity=0.6), row=2, col=1)
+
+        fig.add_trace(go.Scatter(x=ind["Date"], y=ind["RSI14"], name="RSI(14)", line=dict(color="#6C5CE7", width=1.6)), row=3, col=1)
+        fig.add_hline(y=70, line_dash="dash", line_color=NEG, row=3, col=1)
+        fig.add_hline(y=30, line_dash="dash", line_color=POS, row=3, col=1)
+
+        fig.update_layout(
+            template=PLOTLY_TEMPLATE, height=760, showlegend=True,
+            xaxis_rangeslider_visible=False,
+            legend=dict(orientation="h", yanchor="bottom", y=1.01, x=0),
+            margin=dict(l=10, r=10, t=10, b=10),
+        )
+        fig.update_yaxes(title_text="Price ($)", row=1, col=1)
+        fig.update_yaxes(title_text="Volume", row=2, col=1)
+        fig.update_yaxes(title_text="RSI", row=3, col=1, range=[0, 100])
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown('<div class="section-title">MACD</div>', unsafe_allow_html=True)
+        fig_macd = go.Figure()
+        macd_colors = [POS if v >= 0 else NEG for v in ind["MACD_HIST"]]
+        fig_macd.add_trace(go.Bar(x=ind["Date"], y=ind["MACD_HIST"], name="Histogram", marker_color=macd_colors, opacity=0.55))
+        fig_macd.add_trace(go.Scatter(x=ind["Date"], y=ind["MACD"], name="MACD", line=dict(color=NAVY, width=1.6)))
+        fig_macd.add_trace(go.Scatter(x=ind["Date"], y=ind["MACD_SIGNAL"], name="Signal", line=dict(color=GOLD, width=1.6)))
+        fig_macd.update_layout(template=PLOTLY_TEMPLATE, height=280, margin=dict(l=10, r=10, t=10, b=10),
+                                legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0))
+        st.plotly_chart(fig_macd, use_container_width=True)
+
+        # Technical read-out
+        last_rsi = ind["RSI14"].iloc[-1]
+        trend = "bullish" if ind["SMA20"].iloc[-1] > ind["SMA50"].iloc[-1] else "bearish"
+        rsi_state = "overbought" if last_rsi > 70 else "oversold" if last_rsi < 30 else "neutral"
+        st.markdown(
+            f"""
+            <div class="verdict-box">
+            <b>Technical read:</b> {primary_ticker} is in a short-term <b>{trend}</b> posture
+            (20-day SMA {'above' if trend=='bullish' else 'below'} 50-day SMA), with RSI(14) at
+            <b>{last_rsi:.1f}</b> — currently <b>{rsi_state}</b>. This is a mechanical read of price
+            action only and should be weighed alongside fundamentals below.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+# ===================== TAB 3 — VALUATION & DCF ============================
+with tab_valuation:
+    fi = load_fundamentals(primary_ticker)
+    st.markdown(f'<div class="section-title">{primary_ticker} — Fundamental Snapshot</div>', unsafe_allow_html=True)
+
+    fcol1, fcol2, fcol3, fcol4 = st.columns(4)
+    fund_metrics = [
+        (fcol1, "P/E (TTM)", fmt_num(fi.get("trailingPE"))),
+        (fcol1, "Forward P/E", fmt_num(fi.get("forwardPE"))),
+        (fcol2, "PEG Ratio", fmt_num(fi.get("pegRatio"))),
+        (fcol2, "Price / Book", fmt_num(fi.get("priceToBook"))),
+        (fcol3, "EV / EBITDA", fmt_num(fi.get("enterpriseToEbitda"))),
+        (fcol3, "Profit Margin", fmt_num((fi.get("profitMargins") or 0) * 100, suffix="%")),
+        (fcol4, "ROE", fmt_num((fi.get("returnOnEquity") or 0) * 100, suffix="%")),
+        (fcol4, "Debt / Equity", fmt_num(fi.get("debtToEquity"))),
+    ]
+    for col, label, value in fund_metrics:
+        with col:
+            st.markdown(
+                f"""<div class="kpi-card" style="margin-bottom:12px;">
+                        <div class="kpi-label">{label}</div>
+                        <div class="kpi-value" style="font-size:19px;">{value}</div>
+                    </div>""",
+                unsafe_allow_html=True,
+            )
+
+    st.markdown('<div class="section-title">Discounted Cash Flow — Fair Value Estimate</div>', unsafe_allow_html=True)
+
+    fcf = fi.get("freeCashflow")
+    shares_out = fi.get("sharesOutstanding")
+    net_debt = (fi.get("totalDebt") or 0) - (fi.get("totalCash") or 0)
+    current_price = last_close if primary_ticker == primary_ticker else fi.get("currentPrice")
+
+    dcf_result = simple_dcf(fcf, growth_rate, discount_rate, terminal_growth, 5, net_debt, shares_out)
+
+    dcol1, dcol2 = st.columns([1, 1.4])
+    with dcol1:
+        if dcf_result:
+            fair_value = dcf_result["fair_value_per_share"]
+            upside = (fair_value / current_price - 1) * 100 if current_price else None
+            verdict = "undervalued" if upside and upside > 0 else "overvalued"
+            st.markdown(
+                f"""
+                <div class="kpi-card" style="border-left-color:{POS if (upside or 0) > 0 else NEG};">
+                    <div class="kpi-label">DCF Fair Value / Share</div>
+                    <div class="kpi-value">${fair_value:,.2f}</div>
+                    <div class="{'kpi-delta-pos' if (upside or 0) > 0 else 'kpi-delta-neg'}">
+                        {upside:+.1f}% vs. current price — appears {verdict}
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.caption(
+                "5-year explicit free-cash-flow projection, Gordon-growth terminal value, "
+                "discounted at the WACC set in the sidebar. Adjust growth/discount/terminal "
+                "assumptions to stress-test the output."
+            )
+        else:
+            st.info("Free cash flow or share count unavailable for this ticker — DCF cannot be computed.")
+
+    with dcol2:
+        if dcf_result and fcf:
+            years = list(range(1, 6))
+            proj = [fcf * (1 + growth_rate) ** y for y in years]
+            fig_dcf = go.Figure()
+            fig_dcf.add_trace(go.Bar(x=[f"Year {y}" for y in years], y=proj, marker_color=NAVY, name="Projected FCF"))
+            fig_dcf.update_layout(template=PLOTLY_TEMPLATE, height=300, margin=dict(l=10, r=10, t=10, b=10),
+                                   yaxis_title="Projected Free Cash Flow ($)")
+            st.plotly_chart(fig_dcf, use_container_width=True)
+
+    st.markdown('<div class="section-title">Analyst Price Targets</div>', unsafe_allow_html=True)
+    tcol1, tcol2, tcol3 = st.columns(3)
+    for col, label, key in [
+        (tcol1, "Target Low", "targetLowPrice"),
+        (tcol2, "Target Mean", "targetMeanPrice"),
+        (tcol3, "Target High", "targetHighPrice"),
+    ]:
+        with col:
+            st.markdown(
+                f"""<div class="kpi-card">
+                        <div class="kpi-label">{label}</div>
+                        <div class="kpi-value">{fmt_num(fi.get(key), prefix="$")}</div>
+                    </div>""",
+                unsafe_allow_html=True,
+            )
+
+# ===================== TAB 4 — PORTFOLIO ANALYTICS ==========================
+with tab_portfolio:
+    st.markdown('<div class="section-title">Portfolio Construction</div>', unsafe_allow_html=True)
+    st.caption("Assign weights to each watchlist name (they will be normalised to sum to 100%).")
+
+    weight_cols = st.columns(len(tickers))
+    raw_weights = {}
+    for col, t in zip(weight_cols, tickers):
+        with col:
+            raw_weights[t] = st.number_input(t, min_value=0.0, max_value=100.0, value=round(100/len(tickers), 1), step=1.0, key=f"w_{t}")
+
+    total_w = sum(raw_weights.values()) or 1.0
+    weights = {t: w / total_w for t, w in raw_weights.items()}
+
+    price_frames = {}
+    for t in tickers:
+        d = load_price_history(t, period=period, interval=interval)
+        if not d.empty:
+            price_frames[t] = d.set_index("Date")["Close"]
+
+    if price_frames:
+        prices = pd.DataFrame(price_frames).dropna()
+        returns = prices.pct_change().dropna()
+        port_returns = returns.dot(pd.Series(weights))
+        cum_port = (1 + port_returns).cumprod() - 1
+
+        ann_return = port_returns.mean() * 252
+        ann_vol = port_returns.std() * np.sqrt(252)
+        sharpe = ann_return / ann_vol if ann_vol else np.nan
+
+        pcol1, pcol2, pcol3, pcol4 = st.columns(4)
+        for col, label, val in [
+            (pcol1, "Annualised Return", f"{ann_return*100:,.2f}%"),
+            (pcol2, "Annualised Volatility", f"{ann_vol*100:,.2f}%"),
+            (pcol3, "Sharpe Ratio", f"{sharpe:,.2f}"),
+            (pcol4, "Max Drawdown", f"{((1+port_returns).cumprod()/((1+port_returns).cumprod().cummax())-1).min()*100:,.2f}%"),
+        ]:
+            with col:
+                st.markdown(
+                    f"""<div class="kpi-card"><div class="kpi-label">{label}</div>
+                        <div class="kpi-value" style="font-size:20px;">{val}</div></div>""",
+                    unsafe_allow_html=True,
+                )
+
+        gcol1, gcol2 = st.columns([1.5, 1])
+        with gcol1:
+            st.markdown('<div class="section-title">Cumulative Portfolio Return</div>', unsafe_allow_html=True)
+            fig_p = go.Figure()
+            fig_p.add_trace(go.Scatter(x=cum_port.index, y=cum_port.values * 100, fill="tozeroy",
+                                        line=dict(color=NAVY, width=2), fillcolor="rgba(11,31,58,0.10)", name="Portfolio"))
+            fig_p.update_layout(template=PLOTLY_TEMPLATE, height=360, yaxis_title="Return (%)",
+                                 margin=dict(l=10, r=10, t=10, b=10))
+            st.plotly_chart(fig_p, use_container_width=True)
+
+        with gcol2:
+            st.markdown('<div class="section-title">Allocation</div>', unsafe_allow_html=True)
+            fig_pie = go.Figure(data=[go.Pie(
+                labels=list(weights.keys()), values=list(weights.values()),
+                hole=0.55, marker=dict(colors=[NAVY, GOLD, POS, "#6C5CE7", "#0984E3", "#D63031", "#00897B"]),
+            )])
+            fig_pie.update_layout(template=PLOTLY_TEMPLATE, height=360, margin=dict(l=10, r=10, t=10, b=10),
+                                   showlegend=True, legend=dict(orientation="h", y=-0.1))
+            st.plotly_chart(fig_pie, use_container_width=True)
+
+    st.markdown(
+        """
+        <div class="verdict-box" style="margin-top:10px;">
+        <b>Disclosure:</b> All figures are generated from delayed/real-time public market data
+        for research and educational purposes only. Nothing in this terminal constitutes
+        investment advice or a recommendation to buy or sell any security.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
