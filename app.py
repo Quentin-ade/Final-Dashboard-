@@ -379,7 +379,7 @@ if not tickers:
 st.markdown(
     """
     <div class="terminal-header">
-        <h1>Equity Research &amp; Portfolio Analytics Terminal By Quentin Adeniran</h1>
+        <h1>Equity Research &amp; Portfolio Analytics Terminal by Quentin Adeniran</h1>
         <p>Live Pricing &nbsp;&bull;&nbsp; Technical Studies &nbsp;&bull;&nbsp; Fundamental Valuation
         &nbsp;&bull;&nbsp; Factor Screening &nbsp;&bull;&nbsp; Portfolio Simulation</p>
     </div>
