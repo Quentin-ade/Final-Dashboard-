@@ -21,7 +21,7 @@ from plotly.subplots import make_subplots
 # PAGE CONFIG
 # --------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Equity Research Terminal",
+    page_title="Equity Research Terminal - Quentin Adeniran",
     page_icon="\U0001F4C8",
     layout="wide",
     initial_sidebar_state="expanded",
